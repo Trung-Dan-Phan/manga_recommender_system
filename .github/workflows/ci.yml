@@ -1,0 +1,51 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black isort flake8 pytest
+
+      - name: Check Formatting with Black
+        run: black --check src/ tests/
+
+      - name: Check Import Order with isort
+        run: isort --check-only src/ tests/
+
+      - name: Linting with flake8
+        run: flake8 src/ --max-line-length=100
+
+      - name: Run Tests with Pytest
+        run: pytest tests/
+
+      - name: Run Tests with Coverage
+        run: |
+          pip install pytest-cov
+          pytest --cov=src/ --cov-report=xml
+
+      - name: Upload Coverage Report
+        uses: codecov/codecov-action@v3
+
+      - name: Upload Data to BigQuery
+        run: python data_collection/store_data.py
