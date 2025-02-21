@@ -28,7 +28,7 @@ jobs:
           pip install pytest
 
       - name: Run Tests with Pytest
-        run: pytest tests/
+        run: pytest src/tests/
 
       - name: Run Tests with Coverage
         run: |
