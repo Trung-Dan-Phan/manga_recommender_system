@@ -1,16 +1,18 @@
 repos:
   - repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 23.12.1
     hooks:
       - id: black
+        args: ["--check"]
 
   - repo: https://github.com/PyCQA/isort
     rev: 6.0.0
     hooks:
       - id: isort
+        args: ["--profile", "black"]
 
-  - repo: https://github.com/hhatto/autopep8
-    rev: v2.3.2
+  - repo: https://github.com/pre-commit/mirrors-autopep8
+    rev: v2.0.2
     hooks:
       - id: autopep8
-        args: ["--in-place", "--aggressive", "--aggressive"]
+        args: ["--in-place", "--recursive"]
