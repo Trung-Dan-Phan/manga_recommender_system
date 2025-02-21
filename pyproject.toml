@@ -27,6 +27,7 @@ python-dotenv = "1.0.0"
 requests = "2.31.0"
 google-cloud-bigquery = "3.11.4"
 db-dtypes = "^1.4.1"
+pre-commit = "^4.1.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "23.7.0"
