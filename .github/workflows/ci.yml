@@ -25,16 +25,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install black isort flake8 pytest
+          pip install pytest
 
+      # 🔹 Run Black on all Python files in the repo
       - name: Check Formatting with Black
-        run: black --check src/ tests/
+        run: black --check .  # Runs on all Python files
 
+      # 🔹 Run isort on all Python files in the repo
       - name: Check Import Order with isort
-        run: isort --check-only src/ tests/
+        run: isort --check-only .  # Runs on all Python files
 
+      # 🔹 Run flake8 for linting on all Python files
       - name: Linting with flake8
-        run: flake8 src/ --max-line-length=100
+        run: flake8 . --max-line-length=100  # Runs on all Python files
 
       - name: Run Tests with Pytest
         run: pytest tests/
