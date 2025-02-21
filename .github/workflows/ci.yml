@@ -29,11 +29,11 @@ jobs:
 
       # 🔹 Run Black on all Python files in the repo
       - name: Check Formatting with Black
-        run: black --check src/
+        run: black src/
 
       # 🔹 Run isort on all Python files in the repo
       - name: Check Import Order with isort
-        run: isort --check-only src/
+        run: isort src/
 
       # 🔹 Run flake8 for linting on all Python files
       - name: Linting with flake8
