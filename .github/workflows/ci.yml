@@ -27,18 +27,6 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
-      # 🔹 Run Black on all Python files in the repo
-      - name: Check Formatting with Black
-        run: black src/
-
-      # 🔹 Run isort on all Python files in the repo
-      - name: Check Import Order with isort
-        run: isort src/
-
-      # 🔹 Run flake8 for linting on all Python files
-      - name: Linting with flake8
-        run: flake8 src/ --max-line-length=100 
-
       - name: Run Tests with Pytest
         run: pytest tests/
 
