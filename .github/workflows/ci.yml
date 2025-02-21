@@ -29,15 +29,15 @@ jobs:
 
       # 🔹 Run Black on all Python files in the repo
       - name: Check Formatting with Black
-        run: black --check .  # Runs on all Python files
+        run: black --check src/
 
       # 🔹 Run isort on all Python files in the repo
       - name: Check Import Order with isort
-        run: isort --check-only .  # Runs on all Python files
+        run: isort --check-only src/
 
       # 🔹 Run flake8 for linting on all Python files
       - name: Linting with flake8
-        run: flake8 . --max-line-length=100  # Runs on all Python files
+        run: flake8 src/ --max-line-length=100 
 
       - name: Run Tests with Pytest
         run: pytest tests/
@@ -49,6 +49,3 @@ jobs:
 
       - name: Upload Coverage Report
         uses: codecov/codecov-action@v3
-
-      - name: Upload Data to BigQuery
-        run: python data_collection/store_data.py
