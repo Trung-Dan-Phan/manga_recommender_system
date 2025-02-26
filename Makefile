@@ -15,7 +15,7 @@ PYTHON_INTERPRETER = python
 .PHONY: requirements
 requirements:
 	@for /f "delims=" %%p in (requirements.txt) do poetry add %%p
-	
+
 ## Delete all compiled Python files
 .PHONY: clean
 clean:

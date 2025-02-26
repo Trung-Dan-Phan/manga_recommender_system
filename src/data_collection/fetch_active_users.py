@@ -1,6 +1,7 @@
-import requests
-import pandas as pd
 import time
+
+import pandas as pd
+import requests
 from loguru import logger
 
 # AniList API URL
@@ -21,7 +22,10 @@ query ($mediaId: Int, $page: Int, $perPage: Int) {
 }
 """
 
-def fetch_users_who_updated_manga(media_id: int, start_page: int, max_pages: int) -> set:
+
+def fetch_users_who_updated_manga(
+    media_id: int, start_page: int, max_pages: int
+) -> set:
     """
     Fetches users who updated their manga status for a specific AniList manga.
 
@@ -36,10 +40,15 @@ def fetch_users_who_updated_manga(media_id: int, start_page: int, max_pages: int
 
     while page <= start_page + max_pages:
         variables = {"mediaId": media_id, "page": page}
-        response = requests.post(API_URL, json={"query": QUERY_MANGA_ACTIVITY, "variables": variables})
+        response = requests.post(
+            API_URL, json={"query": QUERY_MANGA_ACTIVITY, "variables": variables}
+        )
 
         if response.status_code != 200:
-            logger.error(f"Failed to fetch activity for media {media_id}, page {page}: {response.status_code}")
+            logger.error(
+                f"Failed to fetch activity for media {media_id}, "
+                f"page {page}: {response.status_code}"
+            )
             break
 
         data = response.json()
@@ -51,18 +60,23 @@ def fetch_users_who_updated_manga(media_id: int, start_page: int, max_pages: int
         for activity in activities:
             usernames.add(activity["user"]["name"])
 
-        logger.info(f"Fetched {len(activities)} activity updates for media {media_id}, page {page}.")
+        logger.info(
+            f"Fetched {len(activities)} activity updates for media {media_id}, page {page}."
+        )
         page += 1
         time.sleep(2)  # Avoid API rate-limits
 
     return usernames
 
-if __name__ == "__main__":
-  # Fetch users who updated their status for specified manga
-  media_id = 30013 # One Piece
-  users = fetch_users_who_updated_manga(media_id=media_id, start_page=1, max_pages=100)
 
-  # Save to CSV if data exists
-  df_activity = pd.DataFrame(list(users), columns=["Username"])
-  df_activity.to_csv("./data/raw/anilist_users_v3.csv", index=False)
-  logger.info(f"Saved {len(users)} usernames!")
+if __name__ == "__main__":
+    # Fetch users who updated their status for specified manga
+    media_id = 30013  # One Piece
+    users = fetch_users_who_updated_manga(
+        media_id=media_id, start_page=1, max_pages=100
+    )
+
+    # Save to CSV if data exists
+    df_activity = pd.DataFrame(list(users), columns=["Username"])
+    df_activity.to_csv("./data/raw/anilist_users_v3.csv", index=False)
+    logger.info(f"Saved {len(users)} usernames!")
