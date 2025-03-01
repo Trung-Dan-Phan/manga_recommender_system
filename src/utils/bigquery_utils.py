@@ -1,6 +1,13 @@
+import os
+
 import pandas as pd
 from google.cloud import bigquery
 from loguru import logger
+
+from config import config  # Import your config.py
+
+# Set the environment variable
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config.GOOGLE_CREDENTIALS_PATH
 
 # Initialize BigQuery client
 client = bigquery.Client()
@@ -70,8 +77,13 @@ def write_data_to_bigquery(dataset_id: str, table_id: str, df: pd.DataFrame):
 
     TABLE_REF = f"{client.project}.{dataset_id}.{table_id}"
 
+    # Overwrite table if TABLE_REF already exists
+    job_config = bigquery.LoadJobConfig(
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE
+    )
+
     try:
-        job = client.load_table_from_dataframe(df, TABLE_REF)
+        job = client.load_table_from_dataframe(df, TABLE_REF, job_config=job_config)
         job.result()  # Wait for completion
         logger.info(f"Successfully uploaded {len(df)} rows to {TABLE_REF}")
     except Exception as e:
