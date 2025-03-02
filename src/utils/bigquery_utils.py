@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import pandas as pd
 from google.cloud import bigquery
@@ -39,30 +40,41 @@ def ensure_dataset_exists(dataset_id: str):
 
 
 def load_data_from_bigquery(
-    dataset_id: str, table_id: str, query: str = None
+    dataset_id: Optional[str] = None,
+    table_id: Optional[str] = None,
+    query: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Loads data from BigQuery into a Pandas DataFrame.
 
     Args:
-        dataset_id (str): The ID of the BigQuery dataset.
-        table_id (str): The name of the table to fetch data from.
-        query (str, optional): SQL query. If None, loads the whole table.
+        dataset_id (Optional[str]): ID of the BigQuery dataset. Required if no query is provided.
+        table_id (Optional[str]): Name of the BigQuery table. Required if no query is provided.
+        query (Optional[str]): SQL query. If provided, dataset_id and table_id are ignored.
 
     Returns:
         pd.DataFrame: The dataset loaded from BigQuery.
 
     Example usage:
     ```
+    # Using a query
     query_file = '../queries/query.sql'
     with open(query_file, "r", encoding="utf-8") as file:
         query = file.read().strip()
 
-    df = load_data_from_bigquery("my_dataset", "my_table", query)
+    df = load_data_from_bigquery(query=query)
+
+    # Loading an entire table
+    df = load_data_from_bigquery(dataset_id="my_dataset", table_id="my_table")
     ```
     """
     try:
         if query is None:
+            if not dataset_id or not table_id:
+                raise ValueError(
+                    "Both dataset_id and table_id must be provided if no query is given."
+                )
+
             # Load entire table
             table_ref = f"{client.project}.{dataset_id}.{table_id}"
             query = f"SELECT * FROM `{table_ref}`"
