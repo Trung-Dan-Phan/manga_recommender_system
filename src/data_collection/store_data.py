@@ -4,9 +4,9 @@ from utils.bigquery_utils import write_data_to_bigquery
 
 if __name__ == "__main__":
     # Fetch data from folder
-    manga_data = pd.read_csv("./data/processed/manga_data.csv")
-    user_statistics = pd.read_csv("./data/processed/user_statistics.csv")
-    user_manga_list = pd.read_csv("./data/processed/user_manga_list.csv")
+    manga_data = pd.read_csv("../data/processed/manga_data.csv")
+    user_statistics = pd.read_csv("../data/processed/user_statistics_v2.csv")
+    user_manga_list = pd.read_csv("../data/processed/user_manga_list_v2.csv")
 
     # Upload to BigQuery
     write_data_to_bigquery(

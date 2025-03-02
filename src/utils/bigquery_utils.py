@@ -38,24 +38,41 @@ def ensure_dataset_exists(dataset_id: str):
         logger.info(f"Dataset '{dataset_id}' created successfully.")
 
 
-def load_data_from_bigquery(dataset_id: str, table_id: str) -> pd.DataFrame:
+def load_data_from_bigquery(
+    dataset_id: str, table_id: str, query: str = None
+) -> pd.DataFrame:
     """
-    Loads a dataset from BigQuery into a Pandas DataFrame.
+    Loads data from BigQuery into a Pandas DataFrame.
 
     Args:
         dataset_id (str): The ID of the BigQuery dataset.
         table_id (str): The name of the table to fetch data from.
+        query (str, optional): SQL query. If None, loads the whole table.
 
     Returns:
         pd.DataFrame: The dataset loaded from BigQuery.
-    """
-    TABLE_REF = f"{client.project}.{dataset_id}.{table_id}"
-    query = f"SELECT * FROM `{TABLE_REF}`"
 
+    Example usage:
+    ```
+    query_file = '../queries/query.sql'
+    with open(query_file, "r", encoding="utf-8") as file:
+        query = file.read().strip()
+
+    df = load_data_from_bigquery("my_dataset", "my_table", query)
+    ```
+    """
     try:
+        if query is None:
+            # Load entire table
+            table_ref = f"{client.project}.{dataset_id}.{table_id}"
+            query = f"SELECT * FROM `{table_ref}`"
+
+        logger.info(f"Loading data using query: {query}")
+
         df = client.query(query).to_dataframe()
-        logger.info(f"Successfully loaded {len(df)} rows from {TABLE_REF}")
+        logger.info(f"Successfully loaded {len(df)} rows from BigQuery")
         return df
+
     except Exception as e:
         logger.error(f"Failed to load dataset from BigQuery: {e}")
         return pd.DataFrame()  # Return an empty DataFrame if there's an error

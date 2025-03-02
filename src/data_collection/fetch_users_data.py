@@ -12,6 +12,9 @@ QUERY = """
     query ($username: String) {
     User(name: $username) {
       id
+      mediaListOptions {
+        scoreFormat
+      }
       statistics {
         manga {
           count
@@ -116,6 +119,7 @@ def fetch_user_data(username: str) -> tuple:
         "Total Manga Read": manga_stats.get("count", None),
         "Total Chapters Read": manga_stats.get("chaptersRead", None),
         "Total Volumes Read": manga_stats.get("volumesRead", None),
+        "Score Format": user_data.get("mediaListOptions", {}).get("scoreFormat", None),
         "Mean Score Given": manga_stats.get("meanScore", None),
         "Score Standard Deviation": manga_stats.get("standardDeviation", None),
         "Favorite Genres": (
@@ -189,7 +193,7 @@ def fetch_user_data(username: str) -> tuple:
 
 if __name__ == "__main__":
     # Fetch user data and save to CSV
-    users_df = pd.read_csv("./data/processed/usernames.csv")
+    users_df = pd.read_csv("../data/processed/usernames.csv")
     usernames = users_df.iloc[:, 0].tolist()
     total_users = len(usernames)
 
@@ -221,7 +225,7 @@ if __name__ == "__main__":
     logger.info(f"Users Manga Shape: {df_manga.shape}")
 
     # Save to CSVs
-    df_stats.to_csv("./data/processed/user_statistics_v2.csv", index=False)
-    df_manga.to_csv("./data/processed/user_manga_list_v2.csv", index=False)
+    df_stats.to_csv("../data/processed/user_statistics_v2.csv", index=False)
+    df_manga.to_csv("../data/processed/user_manga_list_v2.csv", index=False)
 
     logger.info("Users datasets saved successfully!")
