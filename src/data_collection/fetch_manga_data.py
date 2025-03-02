@@ -1,6 +1,7 @@
-import requests
-import pandas as pd
 import time
+
+import pandas as pd
+import requests
 from loguru import logger
 
 # AniList GraphQL Endpoint
@@ -84,13 +85,15 @@ query ($page: Int) {
 }
 """
 
+
 def fetch_manga_data(start_page: int, max_pages: int) -> dict:
     """
     Fetch manga data from AniList API and filter for relevant attributes.
 
     This function retrieves multiple pages of manga data, including details like titles,
-    genres, average scores, popularity, and staff details filtered to include only 
-    primary "Mangaka" (and not Translators). The function handles API pagination until no more results are found.
+    genres, average scores, popularity, and staff details filtered to include only
+    primary "Mangaka" (and not Translators).
+    The function handles API pagination until no more results are found.
 
     Returns:
         list: A list of dictionaries, each representing a manga with relevant data.
@@ -105,13 +108,13 @@ def fetch_manga_data(start_page: int, max_pages: int) -> dict:
         if response.status_code != 200:
             logger.error(f"Error: {response.status_code}, {response.text}")
             break
-        
+
         data = response.json()
         manga_list = data["data"]["Page"]["media"]
 
         if not manga_list:
             break  # Stop when no more data
-        
+
         for manga in manga_list:
             # Filter staff to include only "Mangaka"
             mangaka_staff = [
@@ -120,38 +123,66 @@ def fetch_manga_data(start_page: int, max_pages: int) -> dict:
                 if "Mangaka" in staff["node"]["primaryOccupations"]
             ]
 
-            all_manga.append({
-                "ID": manga["id"],
-                "Title Romaji": manga["title"]["romaji"],
-                "Title English": manga["title"]["english"],
-                "Genres": ", ".join(manga["genres"]) if manga["genres"] else None,
-                "Description": manga["description"],
-                "Average Score": manga["averageScore"],
-                "Popularity": manga["popularity"],
-                "Status": manga["status"],
-                "Chapters": manga["chapters"],
-                "Volumes": manga["volumes"],
-                "Cover Image": manga["coverImage"]["large"] if manga["coverImage"] else None,
-                "Tags": ", ".join(tag["name"] for tag in manga["tags"]) if manga["tags"] else None,
-                "Start Date": f"{manga['startDate']['year']}" if manga["startDate"]["year"] else None,
-                "End Date": f"{manga['endDate']['year']}" if manga["endDate"]["year"] else None,
-                "Is Adult": manga["isAdult"],
-                "Ranking": ", ".join(
-                    f"{rank['rank']} ({rank['type']} - {rank['format']})"
-                    for rank in manga["rankings"]
-                ) if manga["rankings"] else None,
-                "Relations": ", ".join(
-                    f"{relation['node']['title']['romaji']} ({relation['relationType']})"
-                    for relation in manga["relations"]["edges"]
-                    if relation["node"]["title"]["romaji"]
-                ) if manga["relations"]["edges"] else None,
-                "Mangaka": ", ".join(mangaka_staff) if mangaka_staff else None,
-                "Reviews": ", ".join(
-                    f"{review['score']} - {review['summary']}"
-                    for review in manga["reviews"]["nodes"]
-                ) if manga["reviews"]["nodes"] else None
-            })
-        
+            all_manga.append(
+                {
+                    "ID": manga["id"],
+                    "Title Romaji": manga["title"]["romaji"],
+                    "Title English": manga["title"]["english"],
+                    "Genres": ", ".join(manga["genres"]) if manga["genres"] else None,
+                    "Description": manga["description"],
+                    "Average Score": manga["averageScore"],
+                    "Popularity": manga["popularity"],
+                    "Status": manga["status"],
+                    "Chapters": manga["chapters"],
+                    "Volumes": manga["volumes"],
+                    "Cover Image": (
+                        manga["coverImage"]["large"] if manga["coverImage"] else None
+                    ),
+                    "Tags": (
+                        ", ".join(tag["name"] for tag in manga["tags"])
+                        if manga["tags"]
+                        else None
+                    ),
+                    "Start Date": (
+                        f"{manga['startDate']['year']}"
+                        if manga["startDate"]["year"]
+                        else None
+                    ),
+                    "End Date": (
+                        f"{manga['endDate']['year']}"
+                        if manga["endDate"]["year"]
+                        else None
+                    ),
+                    "Is Adult": manga["isAdult"],
+                    "Ranking": (
+                        ", ".join(
+                            f"{rank['rank']} ({rank['type']} - {rank['format']})"
+                            for rank in manga["rankings"]
+                        )
+                        if manga["rankings"]
+                        else None
+                    ),
+                    "Relations": (
+                        ", ".join(
+                            f"{relation['node']['title']['romaji']} ({relation['relationType']})"
+                            for relation in manga["relations"]["edges"]
+                            if relation["node"]["title"]["romaji"]
+                        )
+                        if manga["relations"]["edges"]
+                        else None
+                    ),
+                    "Mangaka": ", ".join(mangaka_staff) if mangaka_staff else None,
+                    "Reviews": (
+                        ", ".join(
+                            f"{review['score']} - {review['summary']}"
+                            for review in manga["reviews"]["nodes"]
+                        )
+                        if manga["reviews"]["nodes"]
+                        else None
+                    ),
+                }
+            )
+
         # Log the first manga entry for debugging
         if page == start_page and all_manga:
             logger.debug(f"First Manga Entry: {all_manga[0]}")
@@ -164,10 +195,10 @@ def fetch_manga_data(start_page: int, max_pages: int) -> dict:
 
 
 if __name__ == "__main__":
-  # Fetch manga data in batches and save to CSV
-  manga_data = fetch_manga_data(start_page=1, max_pages=100)
-  manga_df = pd.DataFrame(manga_data)
-    
-  manga_df.to_csv("./data/raw/manga_data_batch_4.csv", index=False)
+    # Fetch manga data in batches and save to CSV
+    manga_data = fetch_manga_data(start_page=1, max_pages=100)
+    manga_df = pd.DataFrame(manga_data)
 
-  logger.info(f"Saved {len(manga_df)} manga data!")
+    manga_df.to_csv("./data/raw/manga_data_batch_4.csv", index=False)
+
+    logger.info(f"Saved {len(manga_df)} manga data!")

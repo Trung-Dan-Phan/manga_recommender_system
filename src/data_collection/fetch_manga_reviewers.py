@@ -1,6 +1,7 @@
-import requests
 import time
+
 import pandas as pd
+import requests
 from loguru import logger
 
 # AniList API URL
@@ -36,19 +37,22 @@ query ($mediaId: Int, $page: Int) {
 }
 """
 
+
 def fetch_popular_manga(pages=3):
     """
     Fetches popular manga to use their IDs for fetching reviews.
-    
+
     Args:
         pages (int): Number of pages to fetch (each page = 50 manga).
-    
+
     Returns:
         list: A list of popular manga IDs.
     """
     manga_ids = []
     for page in range(1, pages + 1):
-        response = requests.post(API_URL, json={"query": QUERY_POPULAR_MANGA, "variables": {"page": page}})
+        response = requests.post(
+            API_URL, json={"query": QUERY_POPULAR_MANGA, "variables": {"page": page}}
+        )
         if response.status_code != 200:
             logger.error(f"Failed to fetch manga list: {response.status_code}")
             continue
@@ -63,13 +67,14 @@ def fetch_popular_manga(pages=3):
 
     return manga_ids
 
+
 def fetch_reviewers_for_manga(manga_id):
     """
     Fetches reviewers for a given manga ID.
-    
+
     Args:
         manga_id (int): The AniList manga ID.
-    
+
     Returns:
         list: A list of usernames who reviewed the manga.
     """
@@ -77,9 +82,17 @@ def fetch_reviewers_for_manga(manga_id):
     page = 1
 
     while True:
-        response = requests.post(API_URL, json={"query": QUERY_REVIEWERS, "variables": {"mediaId": manga_id, "page": page}})
+        response = requests.post(
+            API_URL,
+            json={
+                "query": QUERY_REVIEWERS,
+                "variables": {"mediaId": manga_id, "page": page},
+            },
+        )
         if response.status_code != 200:
-            logger.error(f"Failed to fetch reviewers for manga {manga_id}: {response.status_code}")
+            logger.error(
+                f"Failed to fetch reviewers for manga {manga_id}: {response.status_code}"
+            )
             break
 
         data = response.json()
@@ -91,16 +104,19 @@ def fetch_reviewers_for_manga(manga_id):
         for review in review_nodes:
             reviewers.add(review["user"]["name"])
 
-        logger.info(f"Fetched {len(review_nodes)} reviewers from manga {manga_id}, page {page}.")
+        logger.info(
+            f"Fetched {len(review_nodes)} reviewers from manga {manga_id}, page {page}."
+        )
         page += 1
         time.sleep(1)  # Avoid rate limits
 
     return list(reviewers)
 
+
 def fetch_all_reviewers():
     """
     Fetches reviewers from multiple popular mangas.
-    
+
     Returns:
         list: A list of unique reviewers from all mangas.
     """
