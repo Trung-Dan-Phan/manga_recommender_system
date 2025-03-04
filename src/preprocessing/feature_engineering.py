@@ -1,13 +1,12 @@
 import re
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 from loguru import logger
 from sklearn.preprocessing import MultiLabelBinarizer, OneHotEncoder
 
 from utils.bigquery_utils import load_data_from_bigquery, write_data_to_bigquery
-
-# --- Utility Functions ---
 
 
 def sanitize_column_name(name: str) -> str:
@@ -25,74 +24,53 @@ def sanitize_column_name(name: str) -> str:
     return sanitized
 
 
-# --- Score Normalization ---
-
-
-def convert_score_to_10(score, score_format):
-    """
-    Convert a score from various formats to a normalized score on a 10-point scale.
-
-    Supported formats:
-      - "POINT_100": Divide score by 10.
-      - "POINT_10" or "POINT_10_DECIMAL": Already on a 10-point scale.
-      - "POINT_5": Multiply by 2.
-      - "POINT_3": Map 1->2.5, 2->5, 3->7.5.
-
-    If either value is NaN or format is unrecognized, returns None.
-
-    Parameters:
-        score (numeric): The original score.
-        score_format (str): Format of the score.
-
-    Returns:
-        float or None: Score on a 10-point scale.
-    """
-    logger.info(f"Converting score '{score}' with format '{score_format}'")
-    if pd.isna(score) or pd.isna(score_format):
-        logger.info("Score or score_format is NaN. Returning None.")
-        return None
-
-    result = None
-    if score_format == "POINT_100":
-        result = score / 10
-    elif score_format in ["POINT_10", "POINT_10_DECIMAL"]:
-        result = score
-    elif score_format == "POINT_5":
-        result = score * 2
-    elif score_format == "POINT_3":
-        if score == 1:
-            result = 2.5
-        elif score == 2:
-            result = 5
-        elif score == 3:
-            result = 7.5
-        else:
-            logger.info("Score value for POINT_3 is not in [1,2,3]. Returning None.")
-            result = None
-    else:
-        logger.info(f"Unrecognized score format: {score_format}. Returning None.")
-        result = None
-
-    logger.info(f"Converted score: {result}")
-    return result
-
-
 def normalize_scores(df: pd.DataFrame) -> pd.DataFrame:
     """
     Normalize the 'score' column based on the 'score_format' column,
-    creating a new column 'normalized_score' on a 10-point scale.
+    creating a new column 'normalized_score' on a 10-point scale using vectorized operations.
+
+    The transformation is applied by filtering the DataFrame for each score format:
+      - "POINT_100": The score is divided by 10.
+      - "POINT_10" or "POINT_10_DECIMAL": The score remains unchanged.
+      - "POINT_5": The score is multiplied by 2.
+      - "POINT_3": The score is mapped as follows: 1 -> 2.5, 2 -> 5, 3 -> 7.5.
+        Other values will be set as NaN.
 
     Parameters:
         df (pd.DataFrame): DataFrame with 'score' and 'score_format' columns.
 
     Returns:
-        pd.DataFrame: DataFrame with a new column 'normalized_score'.
+        pd.DataFrame: DataFrame with an added column 'normalized_score'.
     """
-    logger.info("Normalizing scores to a 10-point scale.")
-    df["normalized_score"] = df.apply(
-        lambda row: convert_score_to_10(row["score"], row["score_format"]), axis=1
+    logger.info("Normalizating scores to a 10-point scale.")
+
+    # Initialize the new column with NaN values
+    df["normalized_score"] = np.nan
+
+    # For "POINT_100": Divide the score by 10
+    mask = (df["score_format"] == "POINT_100") & (df["score"].notna())
+    df.loc[mask, "normalized_score"] = df.loc[mask, "score"] / 10
+    logger.debug(f"Normalized {mask.sum()} scores for POINT_100.")
+
+    # For "POINT_10" and "POINT_10_DECIMAL": No change needed
+    mask = df["score_format"].isin(["POINT_10", "POINT_10_DECIMAL"]) & (
+        df["score"].notna()
     )
-    logger.info("Completed normalizing scores.")
+    df.loc[mask, "normalized_score"] = df.loc[mask, "score"]
+    logger.debug(f"Assigned {mask.sum()} scores for POINT_10/POINT_10_DECIMAL.")
+
+    # For "POINT_5": Multiply the score by 2
+    mask = (df["score_format"] == "POINT_5") & (df["score"].notna())
+    df.loc[mask, "normalized_score"] = df.loc[mask, "score"] * 2
+    logger.debug(f"Normalized {mask.sum()} scores for POINT_5.")
+
+    # For "POINT_3": Map 1->2.5, 2->5, 3->7.5
+    mask = (df["score_format"] == "POINT_3") & (df["score"].notna())
+    mapping = {1: 2.5, 2: 5, 3: 7.5}
+    df.loc[mask, "normalized_score"] = df.loc[mask, "score"].map(mapping)
+    logger.debug(f"Normalized {mask.sum()} scores for POINT_3.")
+
+    logger.info("Completed normalization of scores.")
     return df
 
 
@@ -163,7 +141,7 @@ def encode_column(
 
     Example usage:
         from sklearn.preprocessing import OneHotEncoder
-        encoder = OneHotEncoder(sparse=False)
+        encoder = OneHotEncoder(sparse_output=False)
         df = encode_column(df, "status", encoder, prefix="status", drop_original=True)
     """
     logger.info(
@@ -262,14 +240,14 @@ def feature_engineering(df: pd.DataFrame) -> pd.DataFrame:
 
     # One-hot encode 'status' column using the new encode_column function
     if "status" in df.columns:
-        ohe_status = OneHotEncoder(sparse=False, handle_unknown="ignore")
+        ohe_status = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
         df = encode_column(
             df, "status", ohe_status, prefix="status", drop_original=True
         )
 
     # One-hot encode 'format' column using the new encode_column function
     if "format" in df.columns:
-        ohe_format = OneHotEncoder(sparse=False, handle_unknown="ignore")
+        ohe_format = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
         df = encode_column(
             df, "format", ohe_format, prefix="format", drop_original=True
         )
@@ -287,9 +265,12 @@ if __name__ == "__main__":
     df = load_data_from_bigquery(
         dataset_id="users_dataset", table_id="user_manga_list_clean"
     )
+    logger.info(f"Data shape (pre feature engineering): {df.shape}")
 
     # Perform feature engineering
     df_engineered = feature_engineering(df)
+
+    logger.info(f"Data shape (post feature engineering): {df_engineered.shape}")
 
     # Save or inspect the engineered DataFrame
     write_data_to_bigquery(
@@ -297,4 +278,5 @@ if __name__ == "__main__":
         table_id="user_manga_list_processed",
         df=df_engineered,
     )
+
     logger.info("Feature engineering completed!")
