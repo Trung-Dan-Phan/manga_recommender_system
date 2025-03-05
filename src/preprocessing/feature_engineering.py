@@ -35,6 +35,7 @@ def normalize_scores(df: pd.DataFrame) -> pd.DataFrame:
       - "POINT_5": The score is multiplied by 2.
       - "POINT_3": The score is mapped as follows: 1 -> 2.5, 2 -> 5, 3 -> 7.5.
         Other values will be set as NaN.
+    Then, we round the scores to the nearest integer.
 
     Parameters:
         df (pd.DataFrame): DataFrame with 'score' and 'score_format' columns.
@@ -69,6 +70,9 @@ def normalize_scores(df: pd.DataFrame) -> pd.DataFrame:
     mapping = {1: 2.5, 2: 5, 3: 7.5}
     df.loc[mask, "normalized_score"] = df.loc[mask, "score"].map(mapping)
     logger.debug(f"Normalized {mask.sum()} scores for POINT_3.")
+
+    # Round the normalized scores to the nearest integer
+    df["normalized_score"] = df["normalized_score"].round().astype(int)
 
     logger.info("Completed normalization of scores.")
     return df
