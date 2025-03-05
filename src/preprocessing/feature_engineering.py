@@ -71,8 +71,8 @@ def normalize_scores(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[mask, "normalized_score"] = df.loc[mask, "score"].map(mapping)
     logger.debug(f"Normalized {mask.sum()} scores for POINT_3.")
 
-    # Round the normalized scores to the nearest integer
-    df["normalized_score"] = df["normalized_score"].round().astype(int)
+    # Round the normalized scores to the nearest integer (between 1 and 10)
+    df["normalized_score"] = df["normalized_score"].round().clip(1, 10).astype(int)
 
     logger.info("Completed normalization of scores.")
     return df
