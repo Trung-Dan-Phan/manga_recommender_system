@@ -7,7 +7,7 @@
 # MLflow runs
 /src/mlruns
 
-# Models
+# Recommender Models
 /src/models
 
 # Mac OS-specific storage files
