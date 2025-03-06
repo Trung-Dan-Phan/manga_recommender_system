@@ -7,21 +7,16 @@ import mlflow.sklearn
 import pandas as pd
 from loguru import logger
 from surprise import (
-    NMF,
-    SVD,
-    BaselineOnly,
-    CoClustering,
     Dataset,
     KNNBaseline,
     KNNBasic,
     KNNWithMeans,
     KNNWithZScore,
-    NormalPredictor,
     Reader,
-    SlopeOne,
 )
 from surprise.model_selection import KFold, cross_validate
 
+from training import BASELINE_MODELS, KNN_MODELS, MATRIX_FACTORIZATION_MODELS
 from training.evaluate import precision_recall_at_k
 from utils.bigquery_utils import load_data_from_bigquery
 
@@ -90,6 +85,7 @@ def train_mlflow(
             mlflow.set_tags(
                 {
                     "algorithm_type": type(model).__name__,
+                    "model_name": model_name,
                     "similarity_metric": similarity_metric,
                     "user_based": user_based,
                 }
@@ -218,6 +214,7 @@ def train_mlflow_with_precision_recall(
             mlflow.set_tags(
                 {
                     "algorithm_type": type(model).__name__,
+                    "model_name": model_name,
                     "similarity_metric": similarity_metric,
                     "user_based": user_based,
                 }
@@ -305,22 +302,13 @@ if __name__ == "__main__":
     df = load_data_from_bigquery(query=query)
     logger.info(f"Data shape: {df.shape}")
 
-    # Define models to train
-    models = {
-        "SVD": SVD(),
-        "Slope One": SlopeOne(),
-        "NMF": NMF(),
-        "Normal Predictor": NormalPredictor(),
-        "KNN Baseline": KNNBaseline(),
-        "KNN Basic": KNNBasic(),
-        "KNN with Means": KNNWithMeans(),
-        "KNN with Z-Score": KNNWithZScore(),
-        "Baseline Only": BaselineOnly(),
-        "Co-clustering": CoClustering(),
-    }
-
     # Train and log each model
-    for model_name, model in models.items():
+    MODELS = {}
+    MODELS.update(BASELINE_MODELS)
+    MODELS.update(KNN_MODELS)
+    MODELS.update(MATRIX_FACTORIZATION_MODELS)
+
+    for model_name, model in MODELS.items():
         train_mlflow_with_precision_recall(
             df=df, model_name=model_name, model=model, similarity_metric="cosine"
         )
