@@ -1,10 +1,11 @@
 import pickle
 import sys
 
+import pandas as pd
 from loguru import logger
 
 
-def load_model(model_name):
+def load_model(model_name: str):
     """
     Load a trained recommendation model from a .pkl file.
 
@@ -34,7 +35,7 @@ def load_model(model_name):
         )
 
 
-def predict(model_name, username, title_romaji):
+def predict(model_name: str, username: str, title_romaji: str) -> float:
     """
     Predict the rating a user would give to a manga using a trained recommendation model.
 
@@ -63,6 +64,40 @@ def predict(model_name, username, title_romaji):
         raise ValueError(
             "Prediction could not be completed. Please check inputs and model validity."
         )
+
+
+def generate_recommendations(
+    username: str, best_model: str, df: pd.DataFrame, top_n: int = 10
+) -> pd.DataFrame:
+    """
+    Predicts ratings for all mangas and returns the top N recommendations.
+    """
+    try:
+        unique_mangas = df["title_romaji"].unique()
+        recommendations = []
+
+        for manga_title in unique_mangas:
+            predicted_rating = predict(best_model, username, manga_title)
+            recommendations.append(
+                {
+                    "manga_title": manga_title,
+                    "predicted_rating": round(predicted_rating, 2),
+                }
+            )
+
+        recommendations_df = pd.DataFrame(recommendations).sort_values(
+            by="predicted_rating", ascending=False
+        )
+
+        if recommendations_df.empty:
+            raise ValueError("Recommendations DataFrame is empty!")
+
+        logger.info(f"✅ Generated Top {top_n} Recommendations for {username}")
+        return recommendations_df.head(top_n)
+
+    except Exception as e:
+        logger.error(f"Error generating recommendations: {e}")
+        raise  # Ensure error stops retries
 
 
 if __name__ == "__main__":
