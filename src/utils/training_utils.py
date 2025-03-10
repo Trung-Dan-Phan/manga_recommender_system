@@ -4,10 +4,9 @@ from typing import List, Optional, Tuple
 import mlflow
 import pandas as pd
 from loguru import logger
+from mlflow.tracking import MlflowClient
 from sklearn.model_selection import train_test_split
 from surprise import AlgoBase, Dataset, dump
-
-from utils.bigquery_utils import write_data_to_bigquery
 
 
 def split_dataframe(df: pd.DataFrame, test_size: float = 0.2, random_seed: int = 42):
@@ -124,70 +123,70 @@ def load_model(model_name: str) -> Tuple[Optional[List], Optional[AlgoBase]]:
         return None, None
 
 
-def get_best_model(metric="MAE_mean", optimize="min") -> str:
+def get_best_model(
+    metric: str = "mae",
+    optimize: str = "min",
+) -> AlgoBase:
     """
-    Selects the best model from MLflow.
+    Selects the best model from MLflow based on a given metric
+    and optimization criteria on the testset.
 
     Args:
-        metric (str): Metric to optimize.
-        optimize (str): "min" for MAE, "max" for Precision@K.
+        metric (str): Metric to optimize (e.g., "mae", "precision_at_10").
+        optimize (str): "min" for lower-better metrics, "max" for higher-better metrics.
 
     Returns:
-        str: Best model name.
-
-    Raises:
-        ValueError: If no models are found.
+        AlgoBase: Best model, or None if no suitable models are found.
     """
-    try:
-        client = mlflow.tracking.MlflowClient()
-        experiment = client.get_experiment_by_name("Manga_Recommender")
+    client = MlflowClient()
+    experiment = client.get_experiment_by_name("Manga_Recommender")
 
-        if not experiment:
-            logger.error("MLflow experiment 'Manga_Recommender' not found!")
-            return None
+    if not experiment:
+        logger.error("MLflow experiment 'Manga_Recommender' not found!")
+        return None
 
-        # Search for runs in the experiment
-        runs = client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            order_by=[f"metrics.{metric} {'ASC' if optimize == 'min' else 'DESC'}"],
-        )
-
-        if not runs:
-            logger.error(f"No trained models found with metric '{metric}'")
-            return None
-
-        best_model_name = runs[0].data.tags.get("model_name")
-
-        if not best_model_name:
-            logger.error("No 'model_name' found in MLflow tags!")
-            return None
-
-        logger.info(f"Best Model Selected: {best_model_name} based on {metric}")
-        return best_model_name
-
-    except Exception as e:
-        logger.error(f"Error selecting best model: {e}")
-        return None  # Prevent script from crashing
-
-
-def save_recommendations(df: pd.DataFrame, username: str):
-    """Saves the recommendations to both JSON and CSV files."""
-    recommendations_path = "./data/recommendations"
-    json_path = f"{recommendations_path}/recommendations_{username}.json"
-    csv_path = f"{recommendations_path}/recommendations_{username}.csv"
-
-    # Save to json and csv
-    df.to_json(json_path, orient="records", indent=4)
-    df.to_csv(csv_path, index=False)
-
-    # Save dataframe to BigQuery
-    write_data_to_bigquery(
-        dataset_id="recommendations_dataset",
-        table_id=f"recommendations{username}",
-        df=df,
+    # Search for all runs in the experiment
+    runs = client.search_runs(
+        experiment_ids=[experiment.experiment_id],
+        filter_string=None,  # No filtering applied at this stage
+        order_by=[f"metrics.{metric}_test {'ASC' if optimize == 'min' else 'DESC'}"],
     )
 
-    logger.info(f"Recommendations saved to {recommendations_path}")
+    if not runs:
+        logger.error(f"No trained models found with metric '{metric}_test'")
+        return None
+
+    # Get the best model's metadata
+    best_run = runs[0]
+    best_model_name = best_run.data.tags.get("model_name")
+    model_run_id = best_run.info.run_id
+
+    best_model = None
+
+    if not best_model_name:
+        logger.error("No 'model_name' found in MLflow tags for the best model!")
+
+    # Load model from MLflow artifacts
+    model_path = (
+        f"mlruns/{experiment.experiment_id}/{model_run_id}/artifacts/"
+        f"{best_model_name}.dump"
+    )
+    logger.info(f"Loading best model from: {model_path}")
+
+    try:
+        best_model = dump.load(model_path)[
+            1
+        ]  # dump.load() returns (predictions, model)
+    except Exception as e:
+        logger.error(f"Failed to load model from {model_path}: {e}")
+        return None
+
+    logger.info(
+        f"Best Model Loaded: {best_model_name} "
+        f"based on metric '{metric}' ({optimize})"
+    )
+
+    return best_model
 
 
 def get_k_nearest_neighbors(model: AlgoBase, trainset: Dataset, id: str, k: int = 5):
@@ -229,3 +228,7 @@ def get_k_nearest_neighbors(model: AlgoBase, trainset: Dataset, id: str, k: int 
 
     except ValueError:
         return f"Error: The ID '{id}' does not exist in the dataset."
+
+
+if __name__ == "__main__":
+    logger.info(type(get_best_model()))
