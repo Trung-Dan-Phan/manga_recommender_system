@@ -4,6 +4,8 @@ import sys
 import pandas as pd
 from loguru import logger
 
+from utils.bigquery_utils import load_data_from_bigquery
+
 
 def load_model(model_name: str):
     """
@@ -35,39 +37,8 @@ def load_model(model_name: str):
         )
 
 
-def predict(model_name: str, username: str, title_romaji: str) -> float:
-    """
-    Predict the rating a user would give to a manga using a trained recommendation model.
-
-    Parameters:
-    - model_name (str): Name of the trained model.
-    - username (str): The user for whom we want to predict the rating.
-    - title_romaji (str): The manga title for which the rating is predicted.
-
-    Returns:
-    - float: The estimated rating.
-
-    Raises:
-    - ValueError: If the model fails to make a prediction.
-    """
-    try:
-        # Load the model
-        model = load_model(model_name)
-
-        # Make prediction
-        prediction = model.predict(username, title_romaji)
-
-        return prediction.est
-
-    except Exception as e:
-        logger.error(f"Prediction failed: {e}")
-        raise ValueError(
-            "Prediction could not be completed. Please check inputs and model validity."
-        )
-
-
 def generate_recommendations(
-    username: str, best_model: str, df: pd.DataFrame, top_n: int = 10
+    username: str, model: str, df: pd.DataFrame, top_n: int = 10
 ) -> pd.DataFrame:
     """
     Predicts ratings for all mangas and returns the top N recommendations.
@@ -77,22 +48,27 @@ def generate_recommendations(
         recommendations = []
 
         for manga_title in unique_mangas:
-            predicted_rating = predict(best_model, username, manga_title)
+            # Make prediction
+            prediction = model.predict(username, manga_title)
+            # Append recommendation with prediction parameters
             recommendations.append(
                 {
-                    "manga_title": manga_title,
-                    "predicted_rating": round(predicted_rating, 2),
+                    "uid": prediction.uid,  # User ID
+                    "iid": prediction.iid,  # Manga Title (Item ID)
+                    "r_ui": prediction.r_ui,  # True rating (if available, else None)
+                    "est": int(prediction.est),  # Predicted rating
+                    "details": prediction.details,  # Additional details
                 }
             )
 
         recommendations_df = pd.DataFrame(recommendations).sort_values(
-            by="predicted_rating", ascending=False
+            by="est", ascending=False
         )
 
         if recommendations_df.empty:
             raise ValueError("Recommendations DataFrame is empty!")
 
-        logger.info(f"✅ Generated Top {top_n} Recommendations for {username}")
+        logger.info(f"Generated Top {top_n} Recommendations for {username}")
         return recommendations_df.head(top_n)
 
     except Exception as e:
@@ -101,30 +77,32 @@ def generate_recommendations(
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 3:
         logger.error(
             "Incorrect command usage."
-            "Expected format: python -m training.predict <model_name> <username> <title_romaji>"
-        )
-        print(
-            "Usage: python -m training.predict <model_name> <username> <title_romaji>"
+            "Expected format: python -m training.predict <model_name> <username>"
         )
         sys.exit(1)
 
     model_name = sys.argv[1]
     username = sys.argv[2]
-    title_romaji = sys.argv[3]
 
-    try:
-        predicted_rating = predict(model_name, username, title_romaji)
-        logger.info(
-            f"Predicted rating for user '{username}' "
-            f"and manga '{title_romaji} '"
-            f"using model '{model_name}': "
-            f"{predicted_rating:.2f}"
-        )
-    except ValueError:
-        logger.warning("Prediction failed. Check logs for details.")
+    # Load data from BigQuery
+    query_file = "./queries/simple_train_data.sql"
+    with open(query_file, "r", encoding="utf-8") as file:
+        query = file.read().strip()
+
+    df = load_data_from_bigquery(query=query)
+    logger.info(f"Data shape: {df.shape}")
+
+    # Load the model
+    model = load_model(model_name)
+
+    # Generate recommendations for given user and model name
+    recommendations = generate_recommendations(
+        username=username, model_name=model_name, df=df
+    )
+    logger.info(f"Recommendations for user '{username}'\n" f"{recommendations}': ")
 
 # Note: The prediction works well.
 # However, we need to check why I still obtain a prediction if the user was not in the dataset
