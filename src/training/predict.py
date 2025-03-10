@@ -3,6 +3,7 @@ import sys
 
 import pandas as pd
 from loguru import logger
+from surprise import AlgoBase
 
 from utils.bigquery_utils import load_data_from_bigquery
 
@@ -38,10 +39,18 @@ def load_model(model_name: str):
 
 
 def generate_recommendations(
-    username: str, model: str, df: pd.DataFrame, top_n: int = 10
+    username: str, model: AlgoBase, df: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Predicts ratings for all mangas and returns the top N recommendations.
+
+    Parameters:
+    - username (str): Username for whom recommendations are to be generated.
+    - model (AlgoBase): Trained recommendation model.
+    - df (pd.DataFrame): DataFrame containing user-manga ratings.
+
+    Returns:
+    - pd.DataFrame: DataFrame containing top N recommendations for the given user.
     """
     try:
         unique_mangas = df["title_romaji"].unique()
@@ -65,11 +74,31 @@ def generate_recommendations(
             by="est", ascending=False
         )
 
+        # Extract 'details' dictionary into separate columns
+        recommendations_df = pd.concat(
+            [
+                recommendations_df.drop(columns=["details"]),
+                recommendations_df["details"].apply(pd.Series),
+            ],
+            axis=1,
+        )
+
+        # Rename columns for better readability
+        recommendations_df.rename(
+            columns={
+                "uid": "username",
+                "iid": "title_romaji",
+                "r_ui": "actual_rating",
+                "est": "predicted_rating",
+            },
+            inplace=True,
+        )
+
         if recommendations_df.empty:
             raise ValueError("Recommendations DataFrame is empty!")
 
-        logger.info(f"Generated Top {top_n} Recommendations for {username}")
-        return recommendations_df.head(top_n)
+        logger.info(f"Generated Recommendations for {username}")
+        return recommendations_df
 
     except Exception as e:
         logger.error(f"Error generating recommendations: {e}")
