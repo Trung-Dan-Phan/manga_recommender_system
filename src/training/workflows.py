@@ -8,7 +8,8 @@ from training.tasks import (
     train_knn_models,
     train_matrix_factorization_models,
 )
-from utils.training_utils import get_best_model, save_recommendations
+from utils.bigquery_utils import write_data_to_bigquery
+from utils.training_utils import get_best_model
 
 
 @flow(name="Training Pipeline")
@@ -60,18 +61,22 @@ def recommendation_pipeline(username: str, top_n: int = 10):
 
     try:
         # Get the best model
-        best_model = get_best_model(metric="MAE_mean", optimize="min")
+        best_model = get_best_model(metric="mae", optimize="min")
 
         # Make predictions
         recommendations_df = generate_recommendations(
-            username=username, model=best_model, df=df, top_n=top_n
+            username=username, model=best_model, df=df
         )
 
         logger.info(f"Top {top_n} Recommendations for {username}:")
         logger.info(recommendations_df.head(top_n))
 
-        # Save recommendations
-        save_recommendations(df=recommendations_df, username=username)
+        # Save dataframe to BigQuery
+        write_data_to_bigquery(
+            dataset_id="recommendations_dataset",
+            table_id=f"recommendations_{username}",
+            df=recommendations_df.reset_index(drop=True),
+        )
 
         logger.info("Check workflow by running `prefect server start`")
 
