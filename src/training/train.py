@@ -124,7 +124,7 @@ def train(
 
     # Log metrics
     for metric in accuracy_measures:
-        mlflow.log_metric(f"{metric.upper()}_mean", results[f"test_{metric}"].mean())
+        mlflow.log_metric(f"{metric.lower()}_train", results[f"test_{metric}"].mean())
 
     # Evaluate Precision and Recall @k
     kf = KFold(n_splits=cv, random_state=0)
