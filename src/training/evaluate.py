@@ -3,7 +3,9 @@ from collections import defaultdict
 from loguru import logger
 
 
-def precision_recall_at_k(predictions: list, k: int = 10, threshold: int = 7):
+def precision_recall_at_k(
+    predictions: list, k: int = 10, threshold: int = 7, log: bool = True
+) -> tuple[dict, dict]:
     """
     Compute Precision@K and Recall@K for recommendations.
 
@@ -14,6 +16,7 @@ def precision_recall_at_k(predictions: list, k: int = 10, threshold: int = 7):
     - predictions (list): List of tuples from Surprise `test()` method.
     - k (int): Number of top recommendations to consider.
     - threshold (float): The minimum rating to consider an item relevant.
+    - log (bool): Whether to display log results.
 
     Returns:
     - precisions (dict): Precision@K scores per user.
@@ -54,8 +57,9 @@ def precision_recall_at_k(predictions: list, k: int = 10, threshold: int = 7):
     avg_precision = sum(precisions.values()) / len(precisions) if precisions else 0
     avg_recall = sum(recalls.values()) / len(recalls) if recalls else 0
 
-    logger.debug(
-        f"Average Precision@{k}: {avg_precision:.4f}, Average Recall@{k}: {avg_recall:.4f}"
-    )
+    if log:
+        logger.debug(
+            f"Average Precision@{k}: {avg_precision:.4f}, Average Recall@{k}: {avg_recall:.4f}"
+        )
 
     return precisions, recalls
