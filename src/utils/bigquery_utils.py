@@ -78,14 +78,17 @@ def load_data_from_bigquery(
         return pd.DataFrame()  # Return an empty DataFrame if there's an error
 
 
-def write_data_to_bigquery(dataset_id: str, table_id: str, df: pd.DataFrame):
+def write_data_to_bigquery(
+    dataset_id: str, table_id: str, df: pd.DataFrame, mode="overwrite"
+):
     """
-    Writes a CSV file to a specified BigQuery table.
+    Writes a DataFrame to a specified BigQuery table.
 
     Args:
         dataset_id (str): The ID of the BigQuery dataset.
         table_id (str): The name of the table where data should be written.
-        csv_path (str): The local path to the CSV file.
+        df (pd.DataFrame): The Pandas DataFrame containing the data.
+        mode (str): "append" to add new data or "overwrite" to replace existing data.
 
     Returns:
         None
@@ -94,14 +97,21 @@ def write_data_to_bigquery(dataset_id: str, table_id: str, df: pd.DataFrame):
 
     TABLE_REF = f"{client.project}.{dataset_id}.{table_id}"
 
-    # Overwrite table if TABLE_REF already exists
-    job_config = bigquery.LoadJobConfig(
-        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE
-    )
+    # Choose write disposition based on mode
+    if mode == "overwrite":
+        write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
+    elif mode == "append":
+        write_disposition = bigquery.WriteDisposition.WRITE_APPEND
+    else:
+        raise ValueError("Invalid mode. Use 'append' or 'overwrite'.")
+
+    job_config = bigquery.LoadJobConfig(write_disposition=write_disposition)
 
     try:
         job = client.load_table_from_dataframe(df, TABLE_REF, job_config=job_config)
         job.result()  # Wait for completion
-        logger.info(f"Successfully uploaded {len(df)} rows to {TABLE_REF}")
+        logger.info(
+            f"Successfully uploaded {len(df)} rows to {TABLE_REF} with mode={mode}"
+        )
     except Exception as e:
-        logger.error(f"Failed to write CSV to BigQuery: {e}")
+        logger.error(f"Failed to write data to BigQuery: {e}")
