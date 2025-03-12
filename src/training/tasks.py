@@ -1,9 +1,13 @@
+import os
+from typing import Optional
+
 import pandas as pd
-import prefect
+from google.cloud import bigquery
 from loguru import logger
 from prefect import task
 from surprise import AlgoBase
 
+from config import config  # Import your config.py
 from data_collection import MANGA_DATASET_ID, fetch_manga_data
 from preprocessing.clean_data import clean_data
 from preprocessing.feature_engineering import feature_engineering
@@ -12,6 +16,12 @@ from training.predict import generate_recommendations
 from training.train import train_mlflow
 from utils.bigquery_utils import load_data_from_bigquery, write_data_to_bigquery
 from utils.fetching_utils import get_last_fetched_page
+
+# Set the environment variable
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config.GOOGLE_CREDENTIALS_PATH
+
+# Initialize BigQuery client
+client = bigquery.Client()
 
 
 @task(name="Fetch Manga Data")
@@ -40,28 +50,51 @@ def fetch_manga_data_task():
         logger.info("No new manga found.")
 
 
-@task(name="Load Data", retries=3, retry_delay_seconds=5)
+@task(name="Load Data from BigQuery", retries=3, retry_delay_seconds=5)
 def load_data_task(
-    query_path: str,
+    dataset_id: Optional[str] = None,
+    table_id: Optional[str] = None,
+    query_path: Optional[str] = None,
 ) -> pd.DataFrame:
     """
-    Load dataset using a query saved in queries folder.
+    Loads data from BigQuery into a Pandas DataFrame.
+
+    If a query is provided, it is used directly, and dataset_id and table_id are not required.
+    Otherwise, both dataset_id and table_id must be provided to load the entire table.
 
     Args:
-        query (str): Query path to fetch dataset.
+        dataset_id (Optional[str]): The ID of the BigQuery dataset. Required if query is None.
+        table_id (Optional[str]): The table to fetch data from. Required if query is None.
+        query_path (Optional[str]): Path to SQL query to execute.
 
     Returns:
-        pd.DataFrame: Loaded dataset.
+        pd.DataFrame: The dataset loaded from BigQuery.
     """
-    logger = prefect.get_run_logger()
+    if query_path:
+        with open(query_path, "r", encoding="utf-8") as file:
+            query = file.read().strip()
 
-    with open(query_path, "r", encoding="utf-8") as file:
-        query = file.read().strip()
-
-    df = load_data_from_bigquery(query=query)
-
-    logger.info(f"Dataset loaded with {len(df)} rows.")
+    df = load_data_from_bigquery(dataset_id=dataset_id, table_id=table_id, query=query)
     return df
+
+
+@task(name="Write Data to BigQuery", retries=3, retry_delay_seconds=5)
+def write_data_task(
+    dataset_id: str, table_id: str, df: pd.DataFrame, mode="overwrite"
+) -> None:
+    """
+    Writes a DataFrame to a specified BigQuery table.
+
+    Args:
+        dataset_id (str): The ID of the BigQuery dataset.
+        table_id (str): The name of the table where data should be written.
+        df (pd.DataFrame): The Pandas DataFrame containing the data.
+        mode (str): "append" to add new data or "overwrite" to replace existing data.
+
+    Returns:
+        None
+    """
+    write_data_to_bigquery(dataset_id=dataset_id, table_id=table_id, df=df, mode=mode)
 
 
 @task(name="Preprocessing", retries=3, retry_delay_seconds=5)
