@@ -4,6 +4,9 @@ import pandas as pd
 import requests
 from loguru import logger
 
+from utils.bigquery_utils import write_data_to_bigquery
+from utils.fetching_utils import get_last_fetched_page
+
 # AniList GraphQL Endpoint
 API_URL = "https://graphql.anilist.co"
 
@@ -86,22 +89,26 @@ query ($page: Int) {
 """
 
 
-def fetch_manga_data(start_page: int, max_pages: int) -> dict:
+def fetch_manga_data(
+    start_page: int = 1, max_pages: int = 50, max_manga: int = 2000
+) -> list:
     """
-    Fetch manga data from AniList API and filter for relevant attributes.
+    Fetch new manga data from AniList API, ensuring no duplicates.
+    Resumes from the last fetched page instead of restarting at page 1.
 
-    This function retrieves multiple pages of manga data, including details like titles,
-    genres, average scores, popularity, and staff details filtered to include only
-    primary "Mangaka" (and not Translators).
-    The function handles API pagination until no more results are found.
+    Args:
+        start_page (int): The page to start fetching from.
+        max_pages (int): Maximum number of pages to fetch.
+        max_manga (int): The maximum number of manga to fetch in one run.
 
     Returns:
-        list: A list of dictionaries, each representing a manga with relevant data.
+        list: A list of new manga entries.
     """
     page = start_page
     all_manga = []
+    fetched_ids = set()  # Track manga IDs to avoid duplicates
 
-    while page <= start_page + max_pages:
+    while len(all_manga) < max_manga and page < start_page + max_pages:
         variables = {"page": page}
         response = requests.post(API_URL, json={"query": QUERY, "variables": variables})
 
@@ -113,9 +120,18 @@ def fetch_manga_data(start_page: int, max_pages: int) -> dict:
         manga_list = data["data"]["Page"]["media"]
 
         if not manga_list:
+            logger.info(f"No manga found at page {page}. Stopping...")
             break  # Stop when no more data
 
         for manga in manga_list:
+            manga_id = manga["id"]
+
+            # Skip duplicate manga
+            if manga_id in fetched_ids:
+                continue  # Avoid duplicates
+
+            fetched_ids.add(manga_id)
+
             # Filter staff to include only "Mangaka"
             mangaka_staff = [
                 staff["node"]["name"]["full"]
@@ -180,12 +196,14 @@ def fetch_manga_data(start_page: int, max_pages: int) -> dict:
                         if manga["reviews"]["nodes"]
                         else None
                     ),
+                    "Page": page,
                 }
             )
 
-        # Log the first manga entry for debugging
-        if page == start_page and all_manga:
-            logger.debug(f"First Manga Entry: {all_manga[0]}")
+            # Stop if we've reached the max limit
+            if len(all_manga) >= max_manga:
+                logger.info(f"Reached max manga fetch limit ({max_manga}). Stopping...")
+                break
 
         logger.info(f"Fetched page {page} with {len(manga_list)} manga entries.")
         page += 1
@@ -195,10 +213,25 @@ def fetch_manga_data(start_page: int, max_pages: int) -> dict:
 
 
 if __name__ == "__main__":
-    # Fetch manga data in batches and save to CSV
-    manga_data = fetch_manga_data(start_page=1, max_pages=100)
-    manga_df = pd.DataFrame(manga_data)
+    dataset_id = "manga_dataset"
+    table_id = "manga_collection_raw_test"
 
-    manga_df.to_csv("./data/raw/manga_data_batch_4.csv", index=False)
+    # Get last fetched manga ID
+    last_fetched_page = get_last_fetched_page(dataset_id=dataset_id, table_id=table_id)
+    logger.info(f"Last fetched page: {last_fetched_page}")
 
-    logger.info(f"Saved {len(manga_df)} manga data!")
+    # Fetch new manga data with a max limit of 2000
+    new_manga_data = fetch_manga_data(start_page=last_fetched_page + 1)
+
+    if new_manga_data:
+        new_manga_df = pd.DataFrame(new_manga_data)
+
+        # Append to BigQuery
+        write_data_to_bigquery(
+            dataset_id=dataset_id, table_id=table_id, df=new_manga_df, mode="append"
+        )
+
+        logger.info(f"Saved {len(new_manga_df)} new manga records!")
+
+    else:
+        logger.info("No new manga found.")
