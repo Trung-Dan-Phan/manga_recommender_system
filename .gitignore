@@ -4,10 +4,10 @@
 # BigQuery service account JSON key
 /src/config/manga-recommender-system-d0a04ad1ff87.json
 
-# MLFlow Runs
+# MLflow runs
 /src/mlruns
 
-# Models
+# Recommender Models
 /src/models
 
 # Mac OS-specific storage files
