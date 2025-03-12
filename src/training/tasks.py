@@ -4,13 +4,44 @@ from loguru import logger
 from prefect import task
 from surprise import AlgoBase
 
+from data_collection import MANGA_DATASET_ID, fetch_manga_data
+from preprocessing.clean_data import clean_data
+from preprocessing.feature_engineering import feature_engineering
 from training import BASELINE_MODELS, KNN_MODELS, MATRIX_FACTORIZATION_MODELS
+from training.predict import generate_recommendations
 from training.train import train_mlflow
-from utils.bigquery_utils import load_data_from_bigquery
+from utils.bigquery_utils import load_data_from_bigquery, write_data_to_bigquery
+from utils.fetching_utils import get_last_fetched_page
+
+
+@task(name="Fetch Manga Data")
+def fetch_manga_data_task():
+    dataset_id = MANGA_DATASET_ID
+    table_id = "manga_collection_raw"
+
+    # Get last fetched manga ID
+    last_fetched_page = get_last_fetched_page(dataset_id=dataset_id, table_id=table_id)
+    logger.info(f"Last fetched page: {last_fetched_page}")
+
+    # Fetch new manga data with a max limit of 2000
+    new_manga_data = fetch_manga_data(start_page=last_fetched_page + 1)
+
+    if new_manga_data:
+        new_manga_df = pd.DataFrame(new_manga_data)
+
+        # Append to BigQuery
+        write_data_to_bigquery(
+            dataset_id=dataset_id, table_id=table_id, df=new_manga_df, mode="append"
+        )
+
+        logger.info(f"Saved {len(new_manga_df)} new manga records!")
+
+    else:
+        logger.info("No new manga found.")
 
 
 @task(name="Load Data", retries=3, retry_delay_seconds=5)
-def load_data(
+def load_data_task(
     query_path: str,
 ) -> pd.DataFrame:
     """
@@ -31,6 +62,20 @@ def load_data(
 
     logger.info(f"Dataset loaded with {len(df)} rows.")
     return df
+
+
+@task(name="Preprocessing", retries=3, retry_delay_seconds=5)
+def preprocessing_task(df: pd.DataFrame):
+    """
+    Performs data cleaning, feature engineering, and handling missing values.
+    """
+    # Perform data cleaning
+    df_clean = clean_data(df)
+
+    # Perform feature engineering
+    df_engineered = feature_engineering(df_clean)
+
+    return df_engineered
 
 
 @task(name="Train Matrix Factorization Models", retries=2, retry_delay_seconds=10)
@@ -61,7 +106,7 @@ def train_baseline_models(df: pd.DataFrame):
 
 
 @task(name="Generate Recommendations", retries=2, retry_delay_seconds=5)
-def generate_recommendations(
+def generate_recommendations_task(
     username: str, model: AlgoBase, df: pd.DataFrame
 ) -> pd.DataFrame:
     """
@@ -75,54 +120,6 @@ def generate_recommendations(
     Returns:
     - pd.DataFrame: DataFrame containing top N recommendations for the given user.
     """
-    try:
-        unique_mangas = df["title_romaji"].unique()
-        recommendations = []
+    recommendations_df = generate_recommendations(username=username, model=model, df=df)
 
-        for manga_title in unique_mangas:
-            # Make prediction
-            prediction = model.predict(username, manga_title)
-            # Append recommendation with prediction parameters
-            recommendations.append(
-                {
-                    "uid": prediction.uid,  # User ID
-                    "iid": prediction.iid,  # Manga Title (Item ID)
-                    "r_ui": prediction.r_ui,  # True rating (if available, else None)
-                    "est": int(prediction.est),  # Predicted rating
-                    "details": prediction.details,  # Additional details
-                }
-            )
-
-        recommendations_df = pd.DataFrame(recommendations).sort_values(
-            by="est", ascending=False
-        )
-
-        # Extract 'details' dictionary into separate columns
-        recommendations_df = pd.concat(
-            [
-                recommendations_df.drop(columns=["details"]),
-                recommendations_df["details"].apply(pd.Series),
-            ],
-            axis=1,
-        )
-
-        # Rename columns for better readability
-        recommendations_df.rename(
-            columns={
-                "uid": "username",
-                "iid": "title_romaji",
-                "r_ui": "actual_rating",
-                "est": "predicted_rating",
-            },
-            inplace=True,
-        )
-
-        if recommendations_df.empty:
-            raise ValueError("Recommendations DataFrame is empty!")
-
-        logger.info(f"Generated Recommendations for {username}")
-        return recommendations_df
-
-    except Exception as e:
-        logger.error(f"Error generating recommendations: {e}")
-        raise  # Ensure error stops retries
+    return recommendations_df
