@@ -8,11 +8,12 @@ from prefect import task
 from surprise import AlgoBase
 
 from config import config  # Import your config.py
-from data_collection import MANGA_DATASET_ID, fetch_manga_data
+from data_collection import MANGA_DATASET_ID
+from data_collection.fetch_manga_data import fetch_manga_data_utils
 from preprocessing.clean_data import clean_data
 from preprocessing.feature_engineering import feature_engineering
 from training import BASELINE_MODELS, KNN_MODELS, MATRIX_FACTORIZATION_MODELS
-from training.predict import generate_recommendations
+from training.predict import generate_recommendations, merge_recommendations_with_manga
 from training.train import train_mlflow
 from utils.bigquery_utils import load_data_from_bigquery, write_data_to_bigquery
 from utils.fetching_utils import get_last_fetched_page
@@ -34,7 +35,7 @@ def fetch_manga_data_task():
     logger.info(f"Last fetched page: {last_fetched_page}")
 
     # Fetch new manga data with a max limit of 2000
-    new_manga_data = fetch_manga_data(start_page=last_fetched_page + 1)
+    new_manga_data = fetch_manga_data_utils(start_page=last_fetched_page + 1)
 
     if new_manga_data:
         new_manga_df = pd.DataFrame(new_manga_data)
@@ -73,8 +74,10 @@ def load_data_task(
     if query_path:
         with open(query_path, "r", encoding="utf-8") as file:
             query = file.read().strip()
+        df = load_data_from_bigquery(query=query)
 
-    df = load_data_from_bigquery(dataset_id=dataset_id, table_id=table_id, query=query)
+    else:
+        df = load_data_from_bigquery(dataset_id=dataset_id, table_id=table_id)
     return df
 
 
@@ -156,3 +159,25 @@ def generate_recommendations_task(
     recommendations_df = generate_recommendations(username=username, model=model, df=df)
 
     return recommendations_df
+
+
+@task(name="Merge Recommendations With Manga Data", retries=2, retry_delay_seconds=5)
+def merge_recommendations_with_manga_task(
+    recommendations_df: pd.DataFrame, manga_df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Merges a recommendations DataFrame with a manga details DataFrame based `title_romaji`.
+
+    Args:
+        recommendations_df (pd.DataFrame): DataFrame containing user recommendations.
+        manga_df (pd.DataFrame): DataFrame containing manga details.
+
+    Returns:
+        pd.DataFrame: A merged DataFrame containing user recommendations along with manga details,
+                      ordered by `predicted_rating` in descending order.
+    """
+    combined_df = merge_recommendations_with_manga(
+        recommendations_df=recommendations_df, manga_df=manga_df
+    )
+
+    return combined_df
