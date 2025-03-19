@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 
-from preprocessing.feature_engineering import (
+from src.preprocessing.feature_engineering import (
     encode_column,
     encode_genres,
     flag_reread,

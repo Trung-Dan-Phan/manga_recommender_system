@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from preprocessing.clean_data import (
+from src.preprocessing.clean_data import (
     clean_text_columns,
     drop_high_missing_columns,
     standardize_column_names,
