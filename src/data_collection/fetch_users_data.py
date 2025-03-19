@@ -58,6 +58,7 @@ QUERY = """
           media {
             id
             title {
+              romaji
               english
             }
             genres
@@ -154,7 +155,8 @@ def fetch_user_data(username: str) -> tuple:
             user_manga_list.append(
                 {
                     "Username": username,
-                    "Manga Title": entry["media"]["title"]["english"],
+                    "Title Romaji": entry["media"]["title"]["romaji"],
+                    "Title English": entry["media"]["title"]["english"],
                     "Genres": (
                         ", ".join(entry["media"]["genres"])
                         if entry["media"]["genres"]

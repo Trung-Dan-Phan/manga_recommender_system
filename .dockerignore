@@ -1,0 +1,24 @@
+# Ignore large directories like MLflow logs
+/mlruns/
+/src/mlruns/
+
+# Ignore Models (large folder)
+/src/models
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.git
+*.venv
+*.md
+
+
+# Ignore virtual environment
+venv/
+env/
+
+# Ignore data files
+/data/
