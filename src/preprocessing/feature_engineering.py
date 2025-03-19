@@ -67,12 +67,17 @@ def normalize_scores(df: pd.DataFrame) -> pd.DataFrame:
 
     # For "POINT_3": Map 1->2.5, 2->5, 3->7.5
     mask = (df["score_format"] == "POINT_3") & (df["score"].notna())
-    mapping = {1: 2.5, 2: 5, 3: 7.5}
+    mapping = {1: 3, 2: 5, 3: 7}
     df.loc[mask, "normalized_score"] = df.loc[mask, "score"].map(mapping)
     logger.debug(f"Normalized {mask.sum()} scores for POINT_3.")
 
     # Round the normalized scores to the nearest integer (between 1 and 10)
-    df["normalized_score"] = df["normalized_score"].round().clip(1, 10).astype(int)
+    df["normalized_score"] = df["normalized_score"].round().clip(1, 10)
+
+    # Handling NaN values explicitly
+    df["normalized_score"] = df["normalized_score"].apply(
+        lambda x: int(x) if pd.notna(x) else np.nan
+    )
 
     logger.info("Completed normalization of scores.")
     return df

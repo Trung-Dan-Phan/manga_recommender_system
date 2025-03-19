@@ -40,7 +40,10 @@ def clean_text_columns(df: pd.DataFrame) -> pd.DataFrame:
     text_cols = ["Manga Title", "Genres", "Format", "Status", "Custom Lists"]
     for col in text_cols:
         if col in df.columns:
-            df[col] = df[col].astype(str).str.strip().str.lower()
+            # Preserve None/NaN values while cleaning the text
+            df[col] = df[col].apply(
+                lambda x: str(x).strip().lower() if pd.notna(x) else x
+            )
             logger.debug(f"Cleaned column: {col}")
     return df
 
@@ -74,7 +77,9 @@ def standardize_column_names(df: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: The DataFrame with standardized column names.
     """
     logger.info("Standardizing column names...")
-    df.columns = [re.sub(r"[^\w]+", "_", col.strip().lower()) for col in df.columns]
+    df.columns = [
+        re.sub(r"[^\w]+", "_", col.strip().lower()).rstrip("_") for col in df.columns
+    ]
     logger.debug(f"New column names: {df.columns.tolist()}")
     return df
 
