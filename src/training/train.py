@@ -309,7 +309,7 @@ def train_mlflow(
 
 if __name__ == "__main__":
     # Load data from BigQuery
-    query_file = "./queries/simple_train_data.sql"
+    query_file = "./queries/simple_processed_users.sql"
     with open(query_file, "r", encoding="utf-8") as file:
         query = file.read().strip()
 
