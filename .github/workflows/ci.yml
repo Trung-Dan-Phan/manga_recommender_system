@@ -28,7 +28,9 @@ jobs:
           pip install pytest
 
       - name: Run Tests with Pytest
-        run: pytest src/tests/
+        run: |
+          export PYTHONPATH=$(pwd)/src
+          pytest src/tests/
 
       - name: Run Tests with Coverage
         run: |

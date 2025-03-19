@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 
-from src.preprocessing.feature_engineering import (
+from preprocessing.feature_engineering import (
     encode_column,
     encode_genres,
     flag_reread,
@@ -92,8 +92,8 @@ def test_flag_reread():
     # Check that the 'reread_flag' column exists
     assert "reread_flag" in result.columns
     # Check the flag values
-    assert result["reread_flag"][0] is False  # 0 rereads should be False
-    assert result["reread_flag"][1] is True  # 1 reread should be True
-    assert result["reread_flag"][2] is True  # 2 rereads should be True
-    assert result["reread_flag"][3] is False  # NaN reread count should be False
-    assert result["reread_flag"][4] is True  # 3 rereads should be True
+    assert not result["reread_flag"][0]  # 0 rereads should be False
+    assert result["reread_flag"][1]  # 1 reread should be True
+    assert result["reread_flag"][2]  # 2 rereads should be True
+    assert not result["reread_flag"][3]  # NaN reread count should be False
+    assert result["reread_flag"][4]  # 3 rereads should be True
