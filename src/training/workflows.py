@@ -6,11 +6,12 @@ import psutil
 from loguru import logger
 from prefect import flow
 
-from data_collection import QUERY_PATH
+from data_collection import MANGA_DATASET_ID, QUERY_PATH
 from training.tasks import (
     fetch_manga_data_task,
     generate_recommendations_task,
     load_data_task,
+    merge_recommendations_with_manga_task,
     preprocessing_task,
     train_baseline_models,
     train_knn_models,
@@ -102,8 +103,8 @@ def recommendation_workflow(query_path: str, username: str, top_n: int = 10):
     logger = prefect.get_run_logger()
     logger.info("Starting manga recommendation pipeline...")
 
-    # Load the dataset
-    df = load_data_task(query_path=query_path)
+    # Load the training dataset
+    train_df = load_data_task(query_path=query_path)
 
     try:
         # Get the best model
@@ -111,29 +112,28 @@ def recommendation_workflow(query_path: str, username: str, top_n: int = 10):
 
         # Make predictions
         recommendations_df = generate_recommendations_task(
-            username=username, model=best_model, df=df
+            username=username, model=best_model, df=train_df
         )
 
         logger.info(f"Top {top_n} Recommendations for {username}:")
         logger.info(recommendations_df.head(top_n))
 
-        # Upload recommendations to BigQuery
-        write_data_task(
-            dataset_id="recommendations_dataset",
-            table_id="recommendations",
-            df=recommendations_df,
-            mode="append",
+        # Load manga dataset
+        manga_df = load_data_task(
+            dataset_id=MANGA_DATASET_ID, table_id="manga_collection_clean"
         )
 
         # Combine recommendations with manga data
-        combined_df = load_data_task(query_path=f"{QUERY_PATH}/combine_users_manga.sql")
+        combined_df = merge_recommendations_with_manga_task(
+            recommendations_df=recommendations_df, manga_df=manga_df
+        )
 
         # Overwrite recommendations in BigQuery
         write_data_task(
             dataset_id="recommendations_dataset",
             table_id="recommendations",
             df=combined_df,
-            mode="overwrite",
+            mode="append",
         )
 
         logger.info(f"Recommendations for {username} completed successfully")
@@ -153,9 +153,22 @@ if __name__ == "__main__":
 
     start_prefect_server()
 
-    # Register flows for serving
-    training_workflow.serve(
-        name="train-model", parameters={"query_path": training_query_path}
+    # Register flows for deployment
+    fetch_manga_data_workflow.deploy(
+        name="fetch-manga-data",
+        work_pool_name="data-fetch-pool",
+        image="trungdan/prefect-recommender-system-fetching:latest",
+        cron="0 9 * * *",  # every day at 9am
+        build=False,
+    )
+
+    training_workflow.deploy(
+        name="train-model",
+        parameters={"query_path": training_query_path},
+        work_pool_name="model-train-pool",
+        image="trungdan/prefect-recommender-system-training:latest",
+        cron="0 9 * * 1",  # every Monday at 9am
+        build=False,
     )
 
     recommendation_workflow.serve(
@@ -163,5 +176,5 @@ if __name__ == "__main__":
         parameters={"query_path": recommendation_query_path, "username": username},
     )
 
-    # Serve the workflow and schedule it to run every day at 6:00 AM
-    fetch_manga_data_workflow.serve(name="fetch-manga-data", cron="0 6 * * *")
+    # NOTE: Since models are large, we need to store them in cloud storage (e.g. S3)
+    # To load them using a Docker image.
