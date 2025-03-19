@@ -133,8 +133,32 @@ if __name__ == "__main__":
     )
     logger.info(f"Recommendations for user '{username}'\n" f"{recommendations}': ")
 
-# Note: The prediction works well.
-# However, we need to check why I still obtain a prediction if the user was not in the dataset
-# and if we predict a score for a manga that does not exist.
-# The idea would be to compute scores for all manga available in the dataset.
-# Then do a ranking (sort by score) depending on manga attributes (e.g. genre)
+
+def merge_recommendations_with_manga(
+    recommendations_df: pd.DataFrame, manga_df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Merges a recommendations DataFrame with a manga details DataFrame based `title_romaji`.
+
+    Args:
+        recommendations_df (pd.DataFrame): DataFrame containing user recommendations.
+        manga_df (pd.DataFrame): DataFrame containing manga details.
+
+    Returns:
+        pd.DataFrame: A merged DataFrame containing user recommendations along with manga details,
+                      ordered by `predicted_rating` in descending order.
+    """
+    # Filter columns
+    recommendations_df = recommendations_df[
+        ["username", "title_romaji", "predicted_rating"]
+    ]
+
+    # Perform the join on the 'title_romaji' column
+    merged_df = recommendations_df.merge(manga_df, on="title_romaji", how="inner")
+
+    # Remove duplicate entries and sort by predicted rating
+    merged_df = merged_df.drop_duplicates().sort_values(
+        by="predicted_rating", ascending=False
+    )
+
+    return merged_df
