@@ -89,7 +89,7 @@ query ($page: Int) {
 """
 
 
-def fetch_manga_data(
+def fetch_manga_data_utils(
     start_page: int = 1, max_pages: int = 50, max_manga: int = 2000
 ) -> list:
     """
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     logger.info(f"Last fetched page: {last_fetched_page}")
 
     # Fetch new manga data with a max limit of 2000
-    new_manga_data = fetch_manga_data(start_page=last_fetched_page + 1)
+    new_manga_data = fetch_manga_data_utils(start_page=last_fetched_page + 1)
 
     if new_manga_data:
         new_manga_df = pd.DataFrame(new_manga_data)
