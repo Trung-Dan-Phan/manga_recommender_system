@@ -3,8 +3,6 @@ import re
 import pandas as pd
 from loguru import logger
 
-from utils.bigquery_utils import load_data_from_bigquery, write_data_to_bigquery
-
 
 def drop_high_missing_columns(df: pd.DataFrame, threshold: float = 0.5) -> pd.DataFrame:
     """
@@ -111,6 +109,8 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
+    from utils.bigquery_utils import load_data_from_bigquery, write_data_to_bigquery
+
     # Load data from BigQuery
     query_file = "./queries/get_positive_scores.sql"
     with open(query_file, "r", encoding="utf-8") as file:

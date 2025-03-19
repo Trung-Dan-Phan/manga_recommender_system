@@ -6,8 +6,6 @@ import pandas as pd
 from loguru import logger
 from sklearn.preprocessing import MultiLabelBinarizer, OneHotEncoder
 
-from utils.bigquery_utils import load_data_from_bigquery, write_data_to_bigquery
-
 
 def sanitize_column_name(name: str) -> str:
     """
@@ -270,6 +268,8 @@ def feature_engineering(df: pd.DataFrame) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
+    from utils.bigquery_utils import load_data_from_bigquery, write_data_to_bigquery
+
     # Load data from BigQuery
     df = load_data_from_bigquery(
         dataset_id="users_dataset", table_id="user_manga_list_clean"
